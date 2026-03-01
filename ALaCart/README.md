@@ -5,7 +5,7 @@ Ever fancied mounting your cart and letting your friends pull you around? Ever f
 Drop the dll into your BepInEx\plugin folder and start to feel like Julius the Cesar. Whip not included.
 
 ## Features
-Adds a new building Piece "GladiatorCart" to your Hammer for a measly piece of wood. Build the cart and point at the spot where the inventory normally is. Mount the cart and hopefully you brought a friend that can pull you.
+Adds a new building Piece "GladiatorCart" to your Hammer for a measly piece of wood. Build the cart and point at the spot where the inventory normally is. Mount the cart. Hopefully you brought a friend that can pull you. Interact with the cart again or jump to dismount.
 
 ## Changelog
 * 0.0.1: Initial Release
