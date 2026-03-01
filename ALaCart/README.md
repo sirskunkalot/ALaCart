@@ -1,4 +1,4 @@
-﻿# ALaCart
+# ALaCart
 Ever fancied mounting your cart and letting your friends pull you around? Ever felt sorry that your Viking ancestors did not have fancy gladiator wagons but the stupid romans did? Good news, everyone! This mod has you covered. 
 
 ## Installation (manual)
