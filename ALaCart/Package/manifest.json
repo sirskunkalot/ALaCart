@@ -1,9 +1,10 @@
 ﻿{
-  "name": "JotunnModStub",
-  "description": "",
+  "name": "ALaCart",
+  "description": "Mount your cart and let your friends pull you around. Bring a bow.",
   "version_number": "0.0.1",
-  "website_url": "",
+  "website_url": "https://github.com/sirskunkalot/ALaCart",
   "dependencies": [
-    "ValheimModding-Jotunn-2.7.9",
+    "denikson-BepInExPack_Valheim-5.4.2333",
+    "ValheimModding-Jotunn-2.27.1"
   ]
 }

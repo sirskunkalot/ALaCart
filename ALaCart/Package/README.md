@@ -1,14 +1,11 @@
-﻿# JotunnModStub
-Upon building for release, this README.md is copied into the `Package` folder for thunderstore packaging. Remember to also edit the manifest.json and supply your own mod icon.
+﻿# ALaCart
+Ever fancied mounting your cart and letting your friends pull you around? Ever felt sorry that your Viking ancestors did not have fancy gladiator wagons but the stupid romans did? Good news, everyone! This mod has you covered. 
 
 ## Installation (manual)
-
+Drop the dll into your BepInEx\plugin folder and start to feel like Julius the Cesar. Whip not included.
 
 ## Features
-
+Adds a new building Piece "GladiatorCart" to your Hammer for a measly piece of wood. Build the cart and point at the spot where the inventory normally is. Mount the cart and hopefully you brought a friend that can pull you.
 
 ## Changelog
-
-
-## Known issues
-You can find the github at:
+* 0.0.1: Initial Release

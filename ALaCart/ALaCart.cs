@@ -1,9 +1,3 @@
-// ALaCart
-// a Valheim mod skeleton using Jötunn
-// 
-// File:    ALaCart.cs
-// Project: ALaCart
-
 using BepInEx;
 using Jotunn.Configs;
 using Jotunn.Entities;
