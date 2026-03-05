@@ -15,7 +15,7 @@ namespace ALaCart
     {
         public const string PluginGUID = "de.sirskunkalot.ALaCart";
         public const string PluginName = "ALaCart";
-        public const string PluginVersion = "0.0.1";
+        public const string PluginVersion = "0.0.2";
 
         public const string AttachTransformName = "ALaCart_AttachPointPlayer";
 
