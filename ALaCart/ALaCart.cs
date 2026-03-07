@@ -23,7 +23,6 @@ namespace ALaCart
         private void Awake()
         {
             PrefabManager.OnVanillaPrefabsAvailable += CloneCart;
-            PrefabManager.Instance.CreateEmptyPrefab();
         }
 
         private void CloneCart()
@@ -70,23 +69,41 @@ namespace ALaCart
     internal class GladiatorCartComponent : MonoBehaviour, Hoverable, Interactable
     {
         public string Name = "GladiatorAttach";
-        public ZNetView NetView;
         public float UseDistance = 2f;
         public Transform AttachPoint;
 
+        private const string ZdoKeyAttachedPlayer = "ALaCart_AttachedPlayer";
+
+        private ZNetView _netView;
         private float _lastSitTime;
         private Player _attachedPlayer;
 
         public void Awake()
         {
-            NetView = gameObject.GetComponentInParent<ZNetView>();
+            _netView = gameObject.GetComponentInParent<ZNetView>();
 
-            if (NetView.GetZDO() == null)
+            if (_netView.GetZDO() == null)
             {
                 enabled = false;
+                return;
             }
-            else if (NetView.IsOwner())
+
+            _netView.Register<ZDOID>("ALaCart_RPC_Attach", RPC_Attach);
+            _netView.Register("ALaCart_RPC_Detach", RPC_Detach);
+
+            if (_netView.IsOwner())
             {
+                var zdo = _netView.GetZDO();
+                var attachedId = zdo.GetZDOID(ZdoKeyAttachedPlayer);
+
+                if (attachedId != ZDOID.None)
+                {
+                    var playerObject = ZNetScene.instance.FindInstance(attachedId);
+
+                    if (!playerObject)
+                        zdo.Set(ZdoKeyAttachedPlayer, ZDOID.None);
+                }
+                
                 var vagon = GetComponentInParent<Vagon>();
                 var num = 10f / vagon.m_bodies.Length;
 
@@ -108,7 +125,7 @@ namespace ALaCart
                 return;
             }
 
-            if (ZInput.GetButtonDown("Jump"))
+            if (ZInput.GetButtonDown("Jump") || _attachedPlayer.IsDead())
             {
                 Detach();
                 return;
@@ -122,9 +139,48 @@ namespace ALaCart
             Detach();
         }
 
+        private void Attach(Player player)
+        {
+            _attachedPlayer = player;
+
+            _netView.InvokeRPC("ALaCart_RPC_Attach", player.GetZDOID());
+        }
+
         private void Detach()
         {
             _attachedPlayer = null;
+
+            if (_netView && _netView.GetZDO() != null)
+                _netView.InvokeRPC("ALaCart_RPC_Detach");
+        }
+
+        private void RPC_Attach(long sender, ZDOID playerId)
+        {
+            var zdo = _netView.GetZDO();
+            if (zdo == null)
+                return;
+
+            if (_netView.IsOwner())
+                zdo.Set(ZdoKeyAttachedPlayer, playerId);
+        }
+
+        private void RPC_Detach(long sender)
+        {
+            var zdo = _netView.GetZDO();
+            if (zdo == null)
+                return;
+
+            if (_netView.IsOwner())
+                zdo.Set(ZdoKeyAttachedPlayer, ZDOID.None);
+        }
+
+        private bool IsInUse()
+        {
+            var zdo = _netView.GetZDO();
+            if (zdo == null)
+                return false;
+
+            return zdo.GetZDOID(ZdoKeyAttachedPlayer) != ZDOID.None;
         }
 
         public string GetHoverText()
@@ -139,6 +195,9 @@ namespace ALaCart
 
             if (!InUseDistance(localPlayer))
                 return Localization.instance.Localize("<color=grey>$piece_toofar</color>");
+
+            if (!_attachedPlayer && IsInUse())
+                return Localization.instance.Localize("<color=grey>In use</color>");
 
             return Localization.instance.Localize(Name + "\n[<color=yellow><b>$KEY_Use</b></color>] $piece_use");
         }
@@ -167,16 +226,21 @@ namespace ALaCart
             if (Time.time - _lastSitTime < 2f)
                 return false;
 
-            if (player.IsEncumbered())
-                return false;
+            //TODO: Allow encumbered players or not?
+            //if (player.IsEncumbered())
+            //    return false;
 
             if (_attachedPlayer && player == _attachedPlayer)
             {
                 Detach();
+                _lastSitTime = Time.time;
                 return true;
             }
 
-            _attachedPlayer = player;
+            if (IsInUse())
+                return false;
+
+            Attach(player);
             _lastSitTime = Time.time;
             return true;
         }
