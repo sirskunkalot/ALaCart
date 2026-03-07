@@ -81,6 +81,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BuffBlockComponent.cs" />
+    <Compile Include="GladiatorCartComponent.cs" />
     <Compile Include="Properties\IgnoreAccessModifiers.cs" />
     <Compile Include="ALaCart.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -16,13 +16,13 @@ namespace ALaCart
         public const string PluginGUID = "de.sirskunkalot.ALaCart";
         public const string PluginName = "ALaCart";
         public const string PluginVersion = "0.0.2";
-        public const string AttachTransformName = "ALaCart_AttachPointPlayer";
-
+        
         public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
 
         private void Awake()
         {
             PrefabManager.OnVanillaPrefabsAvailable += CloneCart;
+            PrefabManager.OnVanillaPrefabsAvailable += CreateBuffBlock;
         }
 
         private void CloneCart()
@@ -32,19 +32,22 @@ namespace ALaCart
                 var cart = new CustomPiece("GladiatorCart", "Cart", new PieceConfig
                 {
                     Name = "GladiatorCart",
-                    PieceTable = "Hammer",
+                    Description = "Mountable cart. Feel like a gladiator.",
+                    PieceTable = PieceTables.Hammer,
+                    Category = PieceCategories.Misc,
                     Requirements = new[]
                     {
                         new RequirementConfig("Wood", 1)
                     }
                 });
+                cart.Piece.m_craftingStation = null;
 
                 PieceManager.Instance.AddPiece(cart);
 
                 var tf = cart.PiecePrefab.transform;
                 DestroyImmediate(tf.Find("load").gameObject);
 
-                var attach = new GameObject(AttachTransformName);
+                var attach = new GameObject("AttachPointPlayer");
                 attach.transform.SetParent(tf, false);
                 attach.transform.SetAsFirstSibling();
                 attach.transform.localPosition = Vector3.up * 0.5f;
@@ -64,198 +67,125 @@ namespace ALaCart
                 PrefabManager.OnVanillaPrefabsAvailable -= CloneCart;
             }
         }
-    }
 
-    internal class GladiatorCartComponent : MonoBehaviour, Hoverable, Interactable
-    {
-        public string Name = "GladiatorAttach";
-        public float UseDistance = 2f;
-        public Transform AttachPoint;
-
-        private const string ZdoKeyAttachedPlayer = "ALaCart_AttachedPlayer";
-
-        private ZNetView _netView;
-        private float _lastSitTime;
-        private Player _attachedPlayer;
-
-        public void Awake()
+        private void CreateBuffBlock()
         {
-            _netView = gameObject.GetComponentInParent<ZNetView>();
-
-            if (_netView.GetZDO() == null)
+            try
             {
-                enabled = false;
-                return;
-            }
+                var prefab = new GameObject("BuffBlock");
+                prefab.layer = LayerMask.NameToLayer("piece_nonsolid");
+                prefab.SetActive(false);
 
-            _netView.Register<ZDOID>("ALaCart_RPC_Attach", RPC_Attach);
-            _netView.Register("ALaCart_RPC_Detach", RPC_Detach);
+                var netView = prefab.AddComponent<ZNetView>();
+                netView.m_persistent = true;
 
-            if (_netView.IsOwner())
-            {
-                var zdo = _netView.GetZDO();
-                var attachedId = zdo.GetZDOID(ZdoKeyAttachedPlayer);
+                var piece = prefab.AddComponent<Piece>();
+                piece.m_canBeRemoved = true;
 
-                if (attachedId != ZDOID.None)
+                var rb = prefab.AddComponent<Rigidbody>();
+                rb.isKinematic = true;
+                rb.useGravity = false;
+
+                var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                visual.layer = LayerMask.NameToLayer("piece_nonsolid");
+                visual.name = "Visual";
+                visual.transform.SetParent(prefab.transform, false);
+                visual.transform.localPosition = Vector3.up * 1f;
+                visual.transform.localScale = Vector3.one * 0.8f;
+
+                var renderer = visual.GetComponent<MeshRenderer>();
+                renderer.material = CreateBuffBlockMaterial();
+
+                var collider = visual.GetComponent<BoxCollider>();
+                collider.isTrigger = true;
+                collider.size = Vector3.one * 1.5f;
+
+                visual.AddComponent<BuffBlockSpin>();
+
+                var buffBlock = prefab.AddComponent<BuffBlockComponent>();
+                buffBlock.Visual = visual;
+
+                var icon = RenderManager.Instance.Render(prefab, RenderManager.IsometricRotation);
+
+                var customPiece = new CustomPiece(prefab, false, new PieceConfig
                 {
-                    var playerObject = ZNetScene.instance.FindInstance(attachedId);
+                    Name = "BuffBlock",
+                    Description = "Drive through for a random buff!",
+                    PieceTable = PieceTables.Hammer,
+                    Category = PieceCategories.Misc,
+                    Icon = icon,
+                    Requirements = new[]
+                    {
+                        new RequirementConfig("Wood", 1)
+                    }
+                });
 
-                    if (!playerObject)
-                        zdo.Set(ZdoKeyAttachedPlayer, ZDOID.None);
-                }
-                
-                var vagon = GetComponentInParent<Vagon>();
-                var num = 10f / vagon.m_bodies.Length;
+                PieceManager.Instance.AddPiece(customPiece);
 
-                foreach (var body in vagon.m_bodies)
+                prefab.SetActive(true);
+            }
+            catch (Exception ex)
+            {
+                Jotunn.Logger.LogWarning($"Caught exception while creating buff block: {ex}");
+            }
+            finally
+            {
+                PrefabManager.OnVanillaPrefabsAvailable -= CreateBuffBlock;
+            }
+        }
+        
+        private Material CreateBuffBlockMaterial()
+        {
+            var texture = new Texture2D(64, 64);
+            var colors = new Color[64 * 64];
+
+            var bgColor = new Color(1f, 0.85f, 0f);
+            for (var i = 0; i < colors.Length; i++)
+                colors[i] = bgColor;
+
+            var borderColor = new Color(0.6f, 0.5f, 0f);
+            for (var x = 0; x < 64; x++)
+            {
+                for (var y = 0; y < 64; y++)
                 {
-                    body.mass = num;
+                    if (x < 4 || x >= 60 || y < 4 || y >= 60)
+                        colors[y * 64 + x] = borderColor;
                 }
             }
-        }
 
-        public void Update()
-        {
-            if (!_attachedPlayer)
-                return;
+            var markColor = new Color(0.2f, 0.15f, 0f);
 
-            if (!AttachPoint)
+            for (var x = 22; x < 42; x++)
+            for (var y = 44; y < 52; y++)
+                colors[y * 64 + x] = markColor;
+
+            for (var x = 36; x < 42; x++)
+            for (var y = 36; y < 44; y++)
+                colors[y * 64 + x] = markColor;
+
+            for (var x = 28; x < 42; x++)
+            for (var y = 28; y < 36; y++)
+                colors[y * 64 + x] = markColor;
+
+            for (var x = 28; x < 36; x++)
+            for (var y = 20; y < 28; y++)
+                colors[y * 64 + x] = markColor;
+
+            for (var x = 28; x < 36; x++)
+            for (var y = 10; y < 18; y++)
+                colors[y * 64 + x] = markColor;
+
+            texture.SetPixels(colors);
+            texture.Apply();
+            texture.filterMode = FilterMode.Point;
+
+            var material = new Material(PrefabManager.Cache.GetPrefab<Shader>("Custom/Piece"))
             {
-                Detach();
-                return;
-            }
+                mainTexture = texture,
+                color = Color.white
+            };
 
-            if (ZInput.GetButtonDown("Jump") || _attachedPlayer.IsDead())
-            {
-                Detach();
-                return;
-            }
-
-            _attachedPlayer.transform.position = AttachPoint.position;
-        }
-
-        private void OnDestroy()
-        {
-            Detach();
-        }
-
-        private void Attach(Player player)
-        {
-            _attachedPlayer = player;
-
-            _netView.InvokeRPC("ALaCart_RPC_Attach", player.GetZDOID());
-        }
-
-        private void Detach()
-        {
-            _attachedPlayer = null;
-
-            if (_netView && _netView.GetZDO() != null)
-                _netView.InvokeRPC("ALaCart_RPC_Detach");
-        }
-
-        private void RPC_Attach(long sender, ZDOID playerId)
-        {
-            var zdo = _netView.GetZDO();
-            if (zdo == null)
-                return;
-
-            if (_netView.IsOwner())
-                zdo.Set(ZdoKeyAttachedPlayer, playerId);
-        }
-
-        private void RPC_Detach(long sender)
-        {
-            var zdo = _netView.GetZDO();
-            if (zdo == null)
-                return;
-
-            if (_netView.IsOwner())
-                zdo.Set(ZdoKeyAttachedPlayer, ZDOID.None);
-        }
-
-        private bool IsInUse()
-        {
-            var zdo = _netView.GetZDO();
-            if (zdo == null)
-                return false;
-
-            return zdo.GetZDOID(ZdoKeyAttachedPlayer) != ZDOID.None;
-        }
-
-        public string GetHoverText()
-        {
-            if (Time.time - _lastSitTime < 2f)
-                return "";
-
-            var localPlayer = Player.m_localPlayer;
-
-            if (!localPlayer)
-                return "";
-
-            if (!InUseDistance(localPlayer))
-                return Localization.instance.Localize("<color=grey>$piece_toofar</color>");
-
-            if (!_attachedPlayer && IsInUse())
-                return Localization.instance.Localize("<color=grey>In use</color>");
-
-            return Localization.instance.Localize(Name + "\n[<color=yellow><b>$KEY_Use</b></color>] $piece_use");
-        }
-
-        public string GetHoverName()
-        {
-            return Name;
-        }
-
-        public bool Interact(Humanoid human, bool hold, bool alt)
-        {
-            if (hold)
-                return false;
-
-            var player = human as Player;
-
-            if (!player)
-                return false;
-
-            if (!AttachPoint)
-                return false;
-
-            if (!InUseDistance(player))
-                return false;
-
-            if (Time.time - _lastSitTime < 2f)
-                return false;
-
-            //TODO: Allow encumbered players or not?
-            //if (player.IsEncumbered())
-            //    return false;
-
-            if (_attachedPlayer && player == _attachedPlayer)
-            {
-                Detach();
-                _lastSitTime = Time.time;
-                return true;
-            }
-
-            if (IsInUse())
-                return false;
-
-            Attach(player);
-            _lastSitTime = Time.time;
-            return true;
-        }
-
-        public bool UseItem(Humanoid user, ItemDrop.ItemData item)
-        {
-            return false;
-        }
-
-        private bool InUseDistance(Humanoid human)
-        {
-            if (!human || !AttachPoint)
-                return false;
-
-            return Vector3.Distance(human.transform.position, AttachPoint.position) < UseDistance;
+            return material;
         }
     }
 }
