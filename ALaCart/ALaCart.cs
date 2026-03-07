@@ -16,16 +16,14 @@ namespace ALaCart
         public const string PluginGUID = "de.sirskunkalot.ALaCart";
         public const string PluginName = "ALaCart";
         public const string PluginVersion = "0.0.2";
-
         public const string AttachTransformName = "ALaCart_AttachPointPlayer";
 
-        // Use this class to add your own localization to the game
-        // https://valheim-modding.github.io/Jotunn/tutorials/localization.html
         public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
 
         private void Awake()
         {
             PrefabManager.OnVanillaPrefabsAvailable += CloneCart;
+            PrefabManager.Instance.CreateEmptyPrefab();
         }
 
         private void CloneCart()
@@ -41,25 +39,26 @@ namespace ALaCart
                         new RequirementConfig("Wood", 1)
                     }
                 });
+
                 PieceManager.Instance.AddPiece(cart);
 
                 var tf = cart.PiecePrefab.transform;
                 DestroyImmediate(tf.Find("load").gameObject);
-                tf.GetComponent<Rigidbody>().mass = 10;
 
                 var attach = new GameObject(AttachTransformName);
                 attach.transform.SetParent(tf, false);
                 attach.transform.SetAsFirstSibling();
-                attach.transform.position += Vector3.up * 0.5f;
+                attach.transform.localPosition = Vector3.up * 0.5f;
 
                 var container = tf.Find("Container").gameObject;
                 DestroyImmediate(container.GetComponent<Container>());
+
                 var chair = container.AddComponent<GladiatorCartComponent>();
                 chair.AttachPoint = attach.transform;
             }
             catch (Exception ex)
             {
-                Jotunn.Logger.LogWarning($"Catched exception while creating cart: {ex}");
+                Jotunn.Logger.LogWarning($"Caught exception while creating cart: {ex}");
             }
             finally
             {
@@ -71,16 +70,12 @@ namespace ALaCart
     internal class GladiatorCartComponent : MonoBehaviour, Hoverable, Interactable
     {
         public string Name = "GladiatorAttach";
-
         public ZNetView NetView;
-
         public float UseDistance = 2f;
-
-        private static float LastSitTime;
-
         public Transform AttachPoint;
 
-        private Player AttachedPlayer;
+        private float _lastSitTime;
+        private Player _attachedPlayer;
 
         public void Awake()
         {
@@ -93,8 +88,9 @@ namespace ALaCart
             else if (NetView.IsOwner())
             {
                 var vagon = GetComponentInParent<Vagon>();
-                float num = 10f / (float)vagon.m_bodies.Length;
-                foreach (Rigidbody body in vagon.m_bodies)
+                var num = 10f / vagon.m_bodies.Length;
+
+                foreach (var body in vagon.m_bodies)
                 {
                     body.mass = num;
                 }
@@ -103,30 +99,47 @@ namespace ALaCart
 
         public void Update()
         {
-            if (!AttachedPlayer)
+            if (!_attachedPlayer)
+                return;
+
+            if (!AttachPoint)
             {
+                Detach();
                 return;
             }
 
             if (ZInput.GetButtonDown("Jump"))
             {
-                AttachedPlayer = null;
+                Detach();
                 return;
             }
 
-            AttachedPlayer.transform.position = AttachPoint.position;
+            _attachedPlayer.transform.position = AttachPoint.position;
+        }
+
+        private void OnDestroy()
+        {
+            Detach();
+        }
+
+        private void Detach()
+        {
+            _attachedPlayer = null;
         }
 
         public string GetHoverText()
         {
-            if (Time.time - LastSitTime < 2f)
-            {
+            if (Time.time - _lastSitTime < 2f)
                 return "";
-            }
-            if (!InUseDistance(Player.m_localPlayer))
-            {
+
+            var localPlayer = Player.m_localPlayer;
+
+            if (!localPlayer)
+                return "";
+
+            if (!InUseDistance(localPlayer))
                 return Localization.instance.Localize("<color=grey>$piece_toofar</color>");
-            }
+
             return Localization.instance.Localize(Name + "\n[<color=yellow><b>$KEY_Use</b></color>] $piece_use");
         }
 
@@ -138,33 +151,34 @@ namespace ALaCart
         public bool Interact(Humanoid human, bool hold, bool alt)
         {
             if (hold)
-            {
                 return false;
-            }
-            Player player = human as Player;
+
+            var player = human as Player;
+
+            if (!player)
+                return false;
+
+            if (!AttachPoint)
+                return false;
+
             if (!InUseDistance(player))
-            {
                 return false;
-            }
-            if (Time.time - LastSitTime < 2f)
-            {
+
+            if (Time.time - _lastSitTime < 2f)
                 return false;
-            }
-            if (player)
+
+            if (player.IsEncumbered())
+                return false;
+
+            if (_attachedPlayer && player == _attachedPlayer)
             {
-                if (player.IsEncumbered())
-                {
-                    return false;
-                }
-                if (AttachedPlayer && player == AttachedPlayer)
-                {
-                    AttachedPlayer = null;
-                    return false;
-                }
-                AttachedPlayer = player;
-                LastSitTime = Time.time;
+                Detach();
+                return true;
             }
-            return false;
+
+            _attachedPlayer = player;
+            _lastSitTime = Time.time;
+            return true;
         }
 
         public bool UseItem(Humanoid user, ItemDrop.ItemData item)
@@ -174,8 +188,10 @@ namespace ALaCart
 
         private bool InUseDistance(Humanoid human)
         {
+            if (!human || !AttachPoint)
+                return false;
+
             return Vector3.Distance(human.transform.position, AttachPoint.position) < UseDistance;
         }
     }
 }
-
