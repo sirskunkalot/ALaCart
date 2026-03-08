@@ -14,15 +14,20 @@ namespace ALaCart
         private float _lastSitTime;
         private Player _attachedPlayer;
 
+        // --- Lifecycle ---
+
         public void Awake()
         {
             _netView = gameObject.GetComponentInParent<ZNetView>();
 
             if (_netView.GetZDO() == null)
             {
+                ALaCart.DebugLog("Cart Awake - no ZDO, disabling");
                 enabled = false;
                 return;
             }
+
+            ALaCart.DebugLog($"Cart Awake - ZDO: {_netView.GetZDO().m_uid}, Owner: {_netView.IsOwner()}");
 
             _netView.Register<ZDOID>("ALaCart_RPC_Attach", RPC_Attach);
             _netView.Register("ALaCart_RPC_Detach", RPC_Detach);
@@ -37,7 +42,10 @@ namespace ALaCart
                     var playerObject = ZNetScene.instance.FindInstance(attachedId);
 
                     if (!playerObject)
+                    {
+                        ALaCart.DebugLog($"Cart Awake - Clearing stale attachment: {attachedId}");
                         zdo.Set(ZdoKeyAttachedPlayer, ZDOID.None);
+                    }
                 }
 
                 var vagon = GetComponentInParent<Vagon>();
@@ -57,12 +65,14 @@ namespace ALaCart
 
             if (!AttachPoint)
             {
+                ALaCart.DebugLog("Cart Update - AttachPoint lost, detaching");
                 Detach();
                 return;
             }
 
             if (ZInput.GetButtonDown("Jump") || _attachedPlayer.IsDead())
             {
+                ALaCart.DebugLog($"Cart Update - Detaching (Jump: {ZInput.GetButtonDown("Jump")}, Dead: {_attachedPlayer.IsDead()})");
                 Detach();
                 return;
             }
@@ -72,18 +82,24 @@ namespace ALaCart
 
         private void OnDestroy()
         {
+            ALaCart.DebugLog("Cart OnDestroy");
             Detach();
         }
 
+        // --- Attach / Detach ---
+
         private void Attach(Player player)
         {
+            ALaCart.DebugLog($"Cart Attach - Player: {player.GetPlayerName()}, ZDOID: {player.GetZDOID()}");
             _attachedPlayer = player;
 
-            _netView.InvokeRPC("ALaCart_RPC_Attach", player.GetZDOID());
+            if (_netView && _netView.GetZDO() != null)
+                _netView.InvokeRPC("ALaCart_RPC_Attach", player.GetZDOID());
         }
 
         private void Detach()
         {
+            ALaCart.DebugLog($"Cart Detach - Player: {_attachedPlayer?.GetPlayerName() ?? "none"}");
             _attachedPlayer = null;
 
             if (_netView && _netView.GetZDO() != null)
@@ -92,6 +108,8 @@ namespace ALaCart
 
         private void RPC_Attach(long sender, ZDOID playerId)
         {
+            ALaCart.DebugLog($"Cart RPC_Attach - sender: {sender}, playerId: {playerId}, IsOwner: {_netView.IsOwner()}");
+
             var zdo = _netView.GetZDO();
             if (zdo == null)
                 return;
@@ -102,12 +120,26 @@ namespace ALaCart
 
         private void RPC_Detach(long sender)
         {
+            ALaCart.DebugLog($"Cart RPC_Detach - sender: {sender}, IsOwner: {_netView.IsOwner()}");
+
             var zdo = _netView.GetZDO();
             if (zdo == null)
                 return;
 
             if (_netView.IsOwner())
                 zdo.Set(ZdoKeyAttachedPlayer, ZDOID.None);
+        }
+
+        // --- State ---
+
+        public Player GetAttachedPlayer()
+        {
+            return _attachedPlayer;
+        }
+
+        public bool IsLocalPlayerAttached()
+        {
+            return _attachedPlayer && _attachedPlayer == Player.m_localPlayer;
         }
 
         private bool IsInUse()
@@ -119,10 +151,53 @@ namespace ALaCart
             return zdo.GetZDOID(ZdoKeyAttachedPlayer) != ZDOID.None;
         }
 
-        public Player GetAttachedPlayer()
+        // --- Interaction ---
+
+        public bool Interact(Humanoid human, bool hold, bool alt)
         {
-            return _attachedPlayer;
+            if (hold)
+                return false;
+
+            var player = human as Player;
+
+            if (!player)
+                return false;
+
+            if (!AttachPoint)
+                return false;
+
+            if (!InUseDistance(player))
+                return false;
+
+            if (Time.time - _lastSitTime < 2f)
+                return false;
+
+            if (_attachedPlayer && player == _attachedPlayer)
+            {
+                ALaCart.DebugLog($"Cart Interact - Detaching player: {player.GetPlayerName()}");
+                Detach();
+                _lastSitTime = Time.time;
+                return true;
+            }
+
+            if (IsInUse())
+            {
+                ALaCart.DebugLog("Cart Interact - Already in use");
+                return false;
+            }
+
+            ALaCart.DebugLog($"Cart Interact - Attaching player: {player.GetPlayerName()}");
+            Attach(player);
+            _lastSitTime = Time.time;
+            return true;
         }
+
+        public bool UseItem(Humanoid user, ItemDrop.ItemData item)
+        {
+            return false;
+        }
+
+        // --- Hover ---
 
         public string GetHoverText()
         {
@@ -148,44 +223,7 @@ namespace ALaCart
             return Name;
         }
 
-        public bool Interact(Humanoid human, bool hold, bool alt)
-        {
-            if (hold)
-                return false;
-
-            var player = human as Player;
-
-            if (!player)
-                return false;
-
-            if (!AttachPoint)
-                return false;
-
-            if (!InUseDistance(player))
-                return false;
-
-            if (Time.time - _lastSitTime < 2f)
-                return false;
-
-            if (_attachedPlayer && player == _attachedPlayer)
-            {
-                Detach();
-                _lastSitTime = Time.time;
-                return true;
-            }
-
-            if (IsInUse())
-                return false;
-
-            Attach(player);
-            _lastSitTime = Time.time;
-            return true;
-        }
-
-        public bool UseItem(Humanoid user, ItemDrop.ItemData item)
-        {
-            return false;
-        }
+        // --- Utility ---
 
         private bool InUseDistance(Humanoid human)
         {

@@ -4,6 +4,7 @@ using Jotunn.Entities;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using System;
+using BepInEx.Configuration;
 using UnityEngine;
 
 namespace ALaCart
@@ -16,13 +17,23 @@ namespace ALaCart
         public const string PluginGUID = "de.sirskunkalot.ALaCart";
         public const string PluginName = "ALaCart";
         public const string PluginVersion = "0.0.2";
-
+        
         public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
+
+        private static ConfigEntry<bool> _debugConfig;
 
         private void Awake()
         {
+            _debugConfig = Config.Bind("General", "Debug", false, "Enable debug logging");
+            
             PrefabManager.OnVanillaPrefabsAvailable += CloneCart;
             PrefabManager.OnVanillaPrefabsAvailable += CreateBuffBlock;
+        }
+        
+        public static void DebugLog(string message)
+        {
+            if (_debugConfig.Value)
+                Jotunn.Logger.LogDebug(message);
         }
 
         private void CloneCart()
@@ -72,6 +83,7 @@ namespace ALaCart
         {
             try
             {
+                // Base prefab with components
                 var prefab = new GameObject("BuffBlock");
                 prefab.layer = LayerMask.NameToLayer("piece_nonsolid");
                 prefab.SetActive(false);
@@ -85,7 +97,8 @@ namespace ALaCart
                 var collider = prefab.AddComponent<BoxCollider>();
                 collider.center = Vector3.up * 1f;
                 collider.size = Vector3.one * 0.8f;
-
+                
+                // Visual part
                 var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 visual.name = "Visual";
                 visual.transform.SetParent(prefab.transform, false);
@@ -105,9 +118,12 @@ namespace ALaCart
 
                 visual.AddComponent<BuffBlockSpin>();
                 
-                var triggerRelay = visual.AddComponent<BuffBlockTrigger>();
+                // Add main component to prefab and wire visual
                 var buffBlock = prefab.AddComponent<BuffBlockComponent>();
                 buffBlock.Visual = visual;
+                
+                // Add trigger relay to visual and wire main component
+                var triggerRelay = visual.AddComponent<BuffBlockTrigger>();
                 triggerRelay.BuffBlock = buffBlock;
 
                 var icon = RenderManager.Instance.Render(prefab, RenderManager.IsometricRotation);
