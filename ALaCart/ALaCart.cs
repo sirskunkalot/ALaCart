@@ -16,7 +16,7 @@ namespace ALaCart
         public const string PluginGUID = "de.sirskunkalot.ALaCart";
         public const string PluginName = "ALaCart";
         public const string PluginVersion = "0.0.2";
-        
+
         public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
 
         private void Awake()
@@ -40,8 +40,8 @@ namespace ALaCart
                         new RequirementConfig("Wood", 1)
                     }
                 });
-                cart.Piece.m_craftingStation = null;
 
+                cart.Piece.m_craftingStation = null;
                 PieceManager.Instance.AddPiece(cart);
 
                 var tf = cart.PiecePrefab.transform;
@@ -82,28 +82,33 @@ namespace ALaCart
                 var piece = prefab.AddComponent<Piece>();
                 piece.m_canBeRemoved = true;
 
-                var rb = prefab.AddComponent<Rigidbody>();
-                rb.isKinematic = true;
-                rb.useGravity = false;
+                var collider = prefab.AddComponent<BoxCollider>();
+                collider.center = Vector3.up * 1f;
+                collider.size = Vector3.one * 0.8f;
 
                 var visual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                visual.layer = LayerMask.NameToLayer("piece_nonsolid");
                 visual.name = "Visual";
                 visual.transform.SetParent(prefab.transform, false);
-                visual.transform.localPosition = Vector3.up * 1f;
+                visual.transform.localPosition = Vector3.up * 1.5f;
                 visual.transform.localScale = Vector3.one * 0.8f;
 
                 var renderer = visual.GetComponent<MeshRenderer>();
                 renderer.material = CreateBuffBlockMaterial();
 
-                var collider = visual.GetComponent<BoxCollider>();
-                collider.isTrigger = true;
-                collider.size = Vector3.one * 1.5f;
+                var trigger = visual.GetComponent<BoxCollider>();
+                trigger.isTrigger = true;
+                trigger.size = Vector3.one * 1.5f;
+
+                var rb = visual.AddComponent<Rigidbody>();
+                rb.isKinematic = true;
+                rb.useGravity = false;
 
                 visual.AddComponent<BuffBlockSpin>();
-
+                
+                var triggerRelay = visual.AddComponent<BuffBlockTrigger>();
                 var buffBlock = prefab.AddComponent<BuffBlockComponent>();
                 buffBlock.Visual = visual;
+                triggerRelay.BuffBlock = buffBlock;
 
                 var icon = RenderManager.Instance.Render(prefab, RenderManager.IsometricRotation);
 
@@ -133,7 +138,7 @@ namespace ALaCart
                 PrefabManager.OnVanillaPrefabsAvailable -= CreateBuffBlock;
             }
         }
-        
+
         private Material CreateBuffBlockMaterial()
         {
             var texture = new Texture2D(64, 64);
@@ -156,34 +161,45 @@ namespace ALaCart
             var markColor = new Color(0.2f, 0.15f, 0f);
 
             for (var x = 22; x < 42; x++)
-            for (var y = 44; y < 52; y++)
-                colors[y * 64 + x] = markColor;
+                for (var y = 44; y < 52; y++)
+                    colors[y * 64 + x] = markColor;
 
             for (var x = 36; x < 42; x++)
-            for (var y = 36; y < 44; y++)
-                colors[y * 64 + x] = markColor;
+                for (var y = 36; y < 44; y++)
+                    colors[y * 64 + x] = markColor;
 
             for (var x = 28; x < 42; x++)
-            for (var y = 28; y < 36; y++)
-                colors[y * 64 + x] = markColor;
+                for (var y = 28; y < 36; y++)
+                    colors[y * 64 + x] = markColor;
 
             for (var x = 28; x < 36; x++)
-            for (var y = 20; y < 28; y++)
-                colors[y * 64 + x] = markColor;
+                for (var y = 20; y < 28; y++)
+                    colors[y * 64 + x] = markColor;
 
             for (var x = 28; x < 36; x++)
-            for (var y = 10; y < 18; y++)
-                colors[y * 64 + x] = markColor;
+                for (var y = 10; y < 18; y++)
+                    colors[y * 64 + x] = markColor;
 
             texture.SetPixels(colors);
             texture.Apply();
             texture.filterMode = FilterMode.Point;
 
+            var torchPrefab = PrefabManager.Instance.GetPrefab("Torch");
+            var torchMat = torchPrefab.GetComponentInChildren<MeshRenderer>().material;
+
+            var material = new Material(torchMat)
+            {
+                mainTexture = texture,
+                color = Color.white
+            };
+
+            /*
             var material = new Material(PrefabManager.Cache.GetPrefab<Shader>("Custom/Piece"))
             {
                 mainTexture = texture,
                 color = Color.white
             };
+            */
 
             return material;
         }

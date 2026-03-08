@@ -23,6 +23,38 @@ namespace ALaCart
         }
     }
 
+    internal class BuffBlockTrigger : MonoBehaviour
+    {
+        public BuffBlockComponent BuffBlock;
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (BuffBlock)
+                BuffBlock.OnBuffBlockTriggerEnter(other);
+        }
+    }
+
+    internal enum BuffTarget
+    {
+        Puller,
+        Rider,
+        Both
+    }
+
+    internal class BuffDefinition
+    {
+        public string Name;
+        public string StatusEffect;
+        public BuffTarget Target;
+
+        public BuffDefinition(string name, string statusEffect, BuffTarget target)
+        {
+            Name = name;
+            StatusEffect = statusEffect;
+            Target = target;
+        }
+    }
+
     internal class BuffBlockComponent : MonoBehaviour
     {
         public GameObject Visual;
@@ -33,19 +65,20 @@ namespace ALaCart
         private ZNetView _netView;
         private float _respawnTimer;
 
-        private static readonly string[] BuffNames =
+        private static readonly BuffDefinition[] Buffs =
         {
-            "SE_Rested",
-            "SE_Wind",
-            "SE_Shield",
-            "SE_Potion_healthmedium"
+            new BuffDefinition("Speed Boost", "SE_Wind", BuffTarget.Puller),
+            new BuffDefinition("Stamina Regen", "SE_Rested", BuffTarget.Puller),
+
+            new BuffDefinition("Shield", "SE_Shield", BuffTarget.Rider),
+            new BuffDefinition("Health Regen", "SE_Potion_healthmedium", BuffTarget.Rider),
         };
 
         private void Awake()
         {
             _netView = GetComponent<ZNetView>();
 
-            if (_netView == null || _netView.GetZDO() == null)
+            if (!_netView || _netView.GetZDO() == null)
             {
                 enabled = false;
                 return;
@@ -53,6 +86,7 @@ namespace ALaCart
 
             _netView.Register("ALaCart_RPC_BuffBlockCollected", RPC_BuffBlockCollected);
             _netView.Register("ALaCart_RPC_BuffBlockRespawn", RPC_BuffBlockRespawn);
+            _netView.Register<int>("ALaCart_RPC_ApplyBuff", RPC_ApplyBuff);
 
             var isActive = _netView.GetZDO().GetBool(ZdoKeyIsActive, true);
             SetVisual(isActive);
@@ -60,9 +94,6 @@ namespace ALaCart
 
         private void Update()
         {
-            if (!_netView)
-                return;
-            
             if (!_netView.IsOwner())
                 return;
 
@@ -75,9 +106,10 @@ namespace ALaCart
                 _netView.InvokeRPC(ZNetView.Everybody, "ALaCart_RPC_BuffBlockRespawn");
         }
 
-        private void OnTriggerEnter(Collider other)
+        public void OnBuffBlockTriggerEnter(Collider other)
         {
-            Jotunn.Logger.LogInfo($"Entered trigger {other}");
+            Jotunn.Logger.LogError("Entered Trigger");
+            
             if (!IsActive())
                 return;
 
@@ -86,28 +118,84 @@ namespace ALaCart
             if (!localPlayer)
                 return;
 
-            var player = other.GetComponentInParent<Player>();
-            if (player != localPlayer)
+            var cart = other.GetComponentInParent<GladiatorCartComponent>();
+
+            if (!cart)
                 return;
 
-            ApplyRandomBuff(localPlayer);
+            var vagon = cart.GetComponentInParent<Vagon>();
+
+            if (!vagon)
+                return;
+
+            var puller = GetPuller(vagon);
+
+            if (puller != localPlayer)
+                return;
+
+            var buffIndex = Random.Range(0, Buffs.Length);
+            var buff = Buffs[buffIndex];
+
+            if (buff.Target == BuffTarget.Puller || buff.Target == BuffTarget.Both)
+                ApplyToPlayer(puller, buff);
+
+            _netView.InvokeRPC(ZNetView.Everybody, "ALaCart_RPC_ApplyBuff", buffIndex);
             _netView.InvokeRPC(ZNetView.Everybody, "ALaCart_RPC_BuffBlockCollected");
         }
 
-        private void ApplyRandomBuff(Player player)
+        private void RPC_ApplyBuff(long sender, int buffIndex)
         {
-            var buffName = BuffNames[UnityEngine.Random.Range(0, BuffNames.Length)];
-            var effect = ObjectDB.instance.GetStatusEffect(buffName.GetStableHashCode());
+            if (buffIndex < 0 || buffIndex >= Buffs.Length)
+                return;
 
-            if (effect != null)
+            var localPlayer = Player.m_localPlayer;
+
+            if (!localPlayer)
+                return;
+
+            var buff = Buffs[buffIndex];
+
+            if (buff.Target != BuffTarget.Rider && buff.Target != BuffTarget.Both)
+                return;
+
+            var carts = FindObjectsOfType<GladiatorCartComponent>();
+
+            foreach (var cart in carts)
             {
-                player.GetSEMan().AddStatusEffect(effect, true);
-                player.Message(MessageHud.MessageType.Center, $"You got: {effect.m_name}!");
+                if (cart.GetAttachedPlayer() == localPlayer)
+                {
+                    ApplyToPlayer(localPlayer, buff);
+                    return;
+                }
             }
-            else
+        }
+
+        private Player GetPuller(Vagon vagon)
+        {
+            foreach (var player in Player.GetAllPlayers())
             {
-                Jotunn.Logger.LogWarning($"Could not find status effect: {buffName}");
+                if (vagon.IsAttached(player))
+                    return player;
             }
+
+            return null;
+        }
+
+        private void ApplyToPlayer(Player player, BuffDefinition buff)
+        {
+            if (!player)
+                return;
+
+            var effect = ObjectDB.instance.GetStatusEffect(buff.StatusEffect.GetStableHashCode());
+
+            if (effect == null)
+            {
+                Jotunn.Logger.LogWarning($"Could not find status effect: {buff.StatusEffect}");
+                return;
+            }
+
+            player.GetSEMan().AddStatusEffect(effect, true);
+            player.Message(MessageHud.MessageType.Center, $"You got: {buff.Name}!");
         }
 
         private bool IsActive()

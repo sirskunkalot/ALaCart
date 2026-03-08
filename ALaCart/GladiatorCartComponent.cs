@@ -119,6 +119,11 @@ namespace ALaCart
             return zdo.GetZDOID(ZdoKeyAttachedPlayer) != ZDOID.None;
         }
 
+        public Player GetAttachedPlayer()
+        {
+            return _attachedPlayer;
+        }
+
         public string GetHoverText()
         {
             if (Time.time - _lastSitTime < 2f)
