@@ -1,10 +1,11 @@
 using BepInEx;
+using BepInEx.Configuration;
+using HarmonyLib;
 using Jotunn.Configs;
 using Jotunn.Entities;
 using Jotunn.Managers;
 using Jotunn.Utils;
 using System;
-using BepInEx.Configuration;
 using UnityEngine;
 
 namespace ALaCart
@@ -17,19 +18,39 @@ namespace ALaCart
         public const string PluginGUID = "de.sirskunkalot.ALaCart";
         public const string PluginName = "ALaCart";
         public const string PluginVersion = "0.0.2";
-        
-        public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
 
+        public static ALaCart Instance;
+        public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
+        public static ConfigEntry<float> CartRespawnTimeConfig;
+        public static ConfigEntry<float> BuffBlockRespawnTimeConfig;
         private static ConfigEntry<bool> _debugConfig;
+        private Harmony _harmony;
 
         private void Awake()
         {
+            Instance = this;
             _debugConfig = Config.Bind("General", "Debug", false, "Enable debug logging");
-            
+            CartRespawnTimeConfig = Config.Bind("General", "CartRespawnTime", 10f,
+                new ConfigDescription("Time in seconds before a destroyed cart respawns. Server synced value.",
+                    new AcceptableValueRange<float>(0f, 300f),
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
+            BuffBlockRespawnTimeConfig = Config.Bind("General", "BuffBlockRespawnTime", 10f,
+                new ConfigDescription("Time in seconds before a collected buff block reappears. Server synced value.",
+                    new AcceptableValueRange<float>(0f, 300f),
+                    new ConfigurationManagerAttributes { IsAdminOnly = true }));
+
+            _harmony = new Harmony(PluginGUID);
+            _harmony.PatchAll();
+
             PrefabManager.OnVanillaPrefabsAvailable += CloneCart;
             PrefabManager.OnVanillaPrefabsAvailable += CreateBuffBlock;
         }
-        
+
+        private void OnDestroy()
+        {
+            _harmony?.UnpatchSelf();
+        }
+
         public static void DebugLog(string message)
         {
             if (_debugConfig.Value)

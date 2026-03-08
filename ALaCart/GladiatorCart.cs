@@ -1,3 +1,5 @@
+using System.Collections;
+using HarmonyLib;
 using UnityEngine;
 
 namespace ALaCart
@@ -231,6 +233,47 @@ namespace ALaCart
                 return false;
 
             return Vector3.Distance(human.transform.position, AttachPoint.position) < UseDistance;
+        }
+    }
+    
+    [HarmonyPatch(typeof(WearNTear), nameof(WearNTear.Destroy))]
+    internal class CartRespawnPatch
+    {
+        private static void Prefix(WearNTear __instance)
+        {
+            var cart = __instance.GetComponentInChildren<GladiatorCartComponent>();
+
+            if (!cart)
+                return;
+
+            var netView = __instance.GetComponent<ZNetView>();
+
+            if (!netView || !netView.IsOwner())
+                return;
+
+            var position = __instance.transform.position;
+            var rotation = __instance.transform.rotation;
+
+            ALaCart.DebugLog($"CartRespawn - Cart destroyed at {position}, scheduling respawn");
+
+            ALaCart.Instance.StartCoroutine(RespawnCart(position, rotation));
+        }
+
+        private static IEnumerator RespawnCart(Vector3 position, Quaternion rotation)
+        {
+            yield return new WaitForSeconds(ALaCart.CartRespawnTimeConfig.Value);
+
+            var prefab = ZNetScene.instance.GetPrefab("GladiatorCart");
+
+            if (!prefab)
+            {
+                Jotunn.Logger.LogWarning("CartRespawn - GladiatorCart prefab not found");
+                yield break;
+            }
+
+            ALaCart.DebugLog($"CartRespawn - Spawning cart at {position}");
+
+            Object.Instantiate(prefab, position, rotation);
         }
     }
 }

@@ -26,7 +26,6 @@ namespace ALaCart
     internal class BuffBlockComponent : MonoBehaviour
     {
         public GameObject Visual;
-        public float RespawnTime = 10f;
 
         private const string ZdoKeyIsActive = "ALaCart_BuffBlockActive";
 
@@ -275,7 +274,7 @@ namespace ALaCart
             if (_netView.IsOwner())
             {
                 _netView.GetZDO().Set(ZdoKeyIsActive, false);
-                _respawnTimer = RespawnTime;
+                _respawnTimer = ALaCart.BuffBlockRespawnTimeConfig.Value;
             }
 
             SetVisual(false);
