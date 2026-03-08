@@ -107,7 +107,8 @@ namespace ALaCart
                 // Base prefab with components
                 var prefab = new GameObject("BuffBlock");
                 prefab.layer = LayerMask.NameToLayer("piece_nonsolid");
-                prefab.SetActive(false);
+                // IMPORTANT: Needs to be inactive while setting up or the ZNetView gets wrecked
+                prefab.SetActive(false); 
 
                 var netView = prefab.AddComponent<ZNetView>();
                 netView.m_persistent = true;
@@ -164,6 +165,9 @@ namespace ALaCart
 
                 PieceManager.Instance.AddPiece(customPiece);
 
+                // IMPORTANT: Needs to be enabled again to actually be in game.
+                // After AddPiece it lives under a disabled parent in Jötunn. 
+                // Took me waaaay too much time figuring it out / remembering :D
                 prefab.SetActive(true);
             }
             catch (Exception ex)
@@ -229,14 +233,6 @@ namespace ALaCart
                 mainTexture = texture,
                 color = Color.white
             };
-
-            /*
-            var material = new Material(PrefabManager.Cache.GetPrefab<Shader>("Custom/Piece"))
-            {
-                mainTexture = texture,
-                color = Color.white
-            };
-            */
 
             return material;
         }
