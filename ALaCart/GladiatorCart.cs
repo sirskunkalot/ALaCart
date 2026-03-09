@@ -1,5 +1,3 @@
-using System.Collections;
-using HarmonyLib;
 using UnityEngine;
 
 namespace ALaCart
@@ -24,12 +22,9 @@ namespace ALaCart
 
             if (_netView.GetZDO() == null)
             {
-                ALaCart.DebugLog("Cart Awake - no ZDO, disabling");
                 enabled = false;
                 return;
             }
-
-            ALaCart.DebugLog($"Cart Awake - ZDO: {_netView.GetZDO().m_uid}, Owner: {_netView.IsOwner()}");
 
             _netView.Register<ZDOID>("ALaCart_RPC_Attach", RPC_Attach);
             _netView.Register("ALaCart_RPC_Detach", RPC_Detach);
@@ -44,10 +39,7 @@ namespace ALaCart
                     var playerObject = ZNetScene.instance.FindInstance(attachedId);
 
                     if (!playerObject)
-                    {
-                        ALaCart.DebugLog($"Cart Awake - Clearing stale attachment: {attachedId}");
                         zdo.Set(ZdoKeyAttachedPlayer, ZDOID.None);
-                    }
                 }
 
                 var vagon = GetComponentInParent<Vagon>();
@@ -67,14 +59,12 @@ namespace ALaCart
 
             if (!AttachPoint)
             {
-                ALaCart.DebugLog("Cart Update - AttachPoint lost, detaching");
                 Detach();
                 return;
             }
 
             if (ZInput.GetButtonDown("Jump") || _attachedPlayer.IsDead())
             {
-                ALaCart.DebugLog($"Cart Update - Detaching (Jump: {ZInput.GetButtonDown("Jump")}, Dead: {_attachedPlayer.IsDead()})");
                 Detach();
                 return;
             }
@@ -84,7 +74,6 @@ namespace ALaCart
 
         private void OnDestroy()
         {
-            ALaCart.DebugLog("Cart OnDestroy");
             Detach();
         }
 
@@ -92,7 +81,6 @@ namespace ALaCart
 
         private void Attach(Player player)
         {
-            ALaCart.DebugLog($"Cart Attach - Player: {player.GetPlayerName()}, ZDOID: {player.GetZDOID()}");
             _attachedPlayer = player;
 
             if (_netView && _netView.GetZDO() != null)
@@ -101,7 +89,6 @@ namespace ALaCart
 
         private void Detach()
         {
-            ALaCart.DebugLog($"Cart Detach - Player: {_attachedPlayer?.GetPlayerName() ?? "none"}");
             _attachedPlayer = null;
 
             if (_netView && _netView.GetZDO() != null)
@@ -110,8 +97,6 @@ namespace ALaCart
 
         private void RPC_Attach(long sender, ZDOID playerId)
         {
-            ALaCart.DebugLog($"Cart RPC_Attach - sender: {sender}, playerId: {playerId}, IsOwner: {_netView.IsOwner()}");
-
             var zdo = _netView.GetZDO();
             if (zdo == null)
                 return;
@@ -122,8 +107,6 @@ namespace ALaCart
 
         private void RPC_Detach(long sender)
         {
-            ALaCart.DebugLog($"Cart RPC_Detach - sender: {sender}, IsOwner: {_netView.IsOwner()}");
-
             var zdo = _netView.GetZDO();
             if (zdo == null)
                 return;
@@ -133,16 +116,6 @@ namespace ALaCart
         }
 
         // --- State ---
-
-        public Player GetAttachedPlayer()
-        {
-            return _attachedPlayer;
-        }
-
-        public bool IsLocalPlayerAttached()
-        {
-            return _attachedPlayer && _attachedPlayer == Player.m_localPlayer;
-        }
 
         private bool IsInUse()
         {
@@ -176,19 +149,14 @@ namespace ALaCart
 
             if (_attachedPlayer && player == _attachedPlayer)
             {
-                ALaCart.DebugLog($"Cart Interact - Detaching player: {player.GetPlayerName()}");
                 Detach();
                 _lastSitTime = Time.time;
                 return true;
             }
 
             if (IsInUse())
-            {
-                ALaCart.DebugLog("Cart Interact - Already in use");
                 return false;
-            }
 
-            ALaCart.DebugLog($"Cart Interact - Attaching player: {player.GetPlayerName()}");
             Attach(player);
             _lastSitTime = Time.time;
             return true;
@@ -233,47 +201,6 @@ namespace ALaCart
                 return false;
 
             return Vector3.Distance(human.transform.position, AttachPoint.position) < UseDistance;
-        }
-    }
-    
-    [HarmonyPatch(typeof(WearNTear), nameof(WearNTear.Destroy))]
-    internal class CartRespawnPatch
-    {
-        private static void Prefix(WearNTear __instance)
-        {
-            var cart = __instance.GetComponentInChildren<GladiatorCartComponent>();
-
-            if (!cart)
-                return;
-
-            var netView = __instance.GetComponent<ZNetView>();
-
-            if (!netView || !netView.IsOwner())
-                return;
-
-            var position = __instance.transform.position;
-            var rotation = __instance.transform.rotation;
-
-            ALaCart.DebugLog($"CartRespawn - Cart destroyed at {position}, scheduling respawn");
-
-            ALaCart.Instance.StartCoroutine(RespawnCart(position, rotation));
-        }
-
-        private static IEnumerator RespawnCart(Vector3 position, Quaternion rotation)
-        {
-            yield return new WaitForSeconds(ALaCart.CartRespawnTimeConfig.Value);
-
-            var prefab = ZNetScene.instance.GetPrefab("GladiatorCart");
-
-            if (!prefab)
-            {
-                Jotunn.Logger.LogWarning("CartRespawn - GladiatorCart prefab not found");
-                yield break;
-            }
-
-            ALaCart.DebugLog($"CartRespawn - Spawning cart at {position}");
-
-            Object.Instantiate(prefab, position, rotation);
         }
     }
 }
