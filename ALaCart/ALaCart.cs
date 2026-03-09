@@ -41,6 +41,7 @@ namespace ALaCart
                 });
 
                 cart.Piece.m_craftingStation = null;
+                cart.Piece.m_canBeRemoved = true;
                 PieceManager.Instance.AddPiece(cart);
 
                 var tf = cart.PiecePrefab.transform;
