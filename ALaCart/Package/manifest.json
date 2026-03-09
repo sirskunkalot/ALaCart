@@ -1,7 +1,7 @@
 ﻿{
   "name": "ALaCart",
   "description": "Mount your cart and let your friends pull you around. Bring a bow.",
-  "version_number": "0.0.3",
+  "version_number": "0.0.4",
   "website_url": "https://github.com/sirskunkalot/ALaCart",
   "dependencies": [
     "denikson-BepInExPack_Valheim-5.4.2333",

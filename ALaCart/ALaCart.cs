@@ -15,7 +15,7 @@ namespace ALaCart
     {
         public const string PluginGUID = "de.sirskunkalot.ALaCart";
         public const string PluginName = "ALaCart";
-        public const string PluginVersion = "0.0.3";
+        public const string PluginVersion = "0.0.4";
 
         public static CustomLocalization Localization = LocalizationManager.Instance.GetLocalization();
 
