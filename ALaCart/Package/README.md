@@ -9,6 +9,9 @@ Adds a new building piece "GladiatorCart" to your Hammer for a measly piece of w
 
 ## Changelog
 
+### v0.0.4
+* Made cart removable with the Hammer
+
 ### v0.0.3
 * Networked cart attachment state via ZDO
 * Cart shows "In use" status to other players
